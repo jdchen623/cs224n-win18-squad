@@ -284,6 +284,10 @@ class BiDAF(object):
             print attn_dist
             # Use attention distribution to take weighted sum of values
             a_i = tf.matmul(attn_dist, values) # shape (batch_size, num_keys, value_vec_size)
+
+            # Apply dropout to a_i
+            a_i = tf.nn.dropout(a_i, self.keep_prob)
+
             print "a_i"
             print a_i
             max_i = tf.reduce_max(similarity_matrix, axis = 2)
@@ -300,6 +304,10 @@ class BiDAF(object):
             #c_prime = tf.matmul(beta_dist, keys)
             c_prime = tf.reduce_sum(beta_dist * keys, axis = 1)
             c_prime = tf.reshape(tf.tile(c_prime, [1, num_keys]), shape = [-1, num_keys, self.value_vec_size])
+
+            # Apply dropout to c_prime
+            c_prime = tf.nn.dropout(c_prime, self.keep_prob)
+
             print "c_prime"
             print c_prime
 
