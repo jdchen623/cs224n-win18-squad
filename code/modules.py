@@ -201,7 +201,7 @@ class BiDAF(object):
         self.key_vec_size = key_vec_size
         self.value_vec_size = value_vec_size
 
-    def build_graph(self, values, values_mask, keys):
+    def build_graph(self, values, values_mask, context_mask, keys):
         """
         Keys attend to values.
         For each key, return an attention distribution and an attention output vector.
@@ -216,7 +216,7 @@ class BiDAF(object):
           attn_dist: Tensor shape (batch_size, num_keys, num_values).
             For each key, the distribution should sum to 1,
             and should be 0 in the value locations that correspond to padding.
-          output: Tensor shape (batch_size, num_keys, hidden_size).
+          output: Tensor shape (batch_size, num_keys, hidden_size).=-0
             This is the attention output; the weighted sum of the values
             (using the attention distribution as weights).
         """
@@ -230,46 +230,87 @@ class BiDAF(object):
 
             num_keys = keys.get_shape()[1]
             num_vals = values.get_shape()[1]
-
+            batch_size = values.get_shape()[0]
+            #print sizes
+            print "(batch size) m =", batch_size
+            print "(num Keys) N =", num_keys
+            print "(num_vals) M =", num_vals
+            print "values_mask"
+            print values_mask
+            print "context_mask"
+            print context_mask
             c = tf.reshape(keys, shape=[-1, self.value_vec_size])
-            q = tf.reshape(keys, shape=[-1, num_vals, self.value_vec_size])
-
+            q = tf.reshape(values, shape=[-1, self.value_vec_size])
+            print "keys"
+            print keys
             first = tf.reshape(tf.matmul(c, w1), shape=[-1, num_keys]) # (m, N)
+
             print "first"
             print first
-            first_component = tf.tile(first, num_vals) # (m, N, M)
+            first_component = tf.reshape(tf.tile(first, [1,num_vals]), shape = [-1, num_keys, num_vals]) # (m, N, M)
+
             print "first component"
             print first_component
-            second = tf.matmul(vals, w2) # (m, M)
+            second = tf.reshape(tf.matmul(q, w2), shape = [-1, num_vals]) # (m, M)
             print "second"
             print second
-            second_component = tf.transpose(tf.tile(second, num_keys), perm=[0, 2, 1]) # (m, N, M)
+            #second_component = tf.transpose(tf.tile(second, num_keys), perm=[0, 2, 1]) # (m, N, M)
+            second_component = tf.reshape(tf.tile(second, [1, num_keys]), shape = [-1, num_keys, num_vals])  #Have ben check this
             print "second component"
             print second_component
-            third = keys * w3 # (m, N, value_vec_size)
+            w3_c = tf.transpose(w3) * keys
+            tiled_w3_c = tf.tile(w3_c, [1,1,num_vals])
+            third = tf.reshape(tiled_w3_c, shape = [-1, num_keys, num_vals, self.value_vec_size]) # (m, N, M, value_vec_size)
             print "third"
             print third
-            third_component = tf.matmul(third, tf.transpose(values)) # (m, N, M) TODO I HOPE?
+            #third_flattened = tf.reshape(third, shape = [num_keys, -1]) # (N, m * value_vec_size)
+            extended_q = tf.reshape(tf.tile(values, [1,1,num_keys]), shape = [-1, num_keys, num_vals, self.value_vec_size]) # (m, N, M, value_vec_size)
+            third_component = tf.reduce_sum(extended_q * third, axis = 3)
+            #third_component = tf.reshape(tf.matmul(third_flattened, tf.reshape(q, shape = [-1, num_vals])), shape = [-1, num_keys, num_vals]) # (m, N, M) TODO I HOPE?
             print "third component"
             print third_component
+            onetwo= first_component + second_component
+            twothree =  second_component + third_component
+            onethree = first_component + third_component
             similarity_matrix = first_component + second_component + third_component # (m, N, M)
+            print "similarity_matrix"
+            print similarity_matrix
 
-            attn_logits = tf.matmul(keys, values_t) # shape (batch_size, num_keys, num_values)
+            #attn_logits = tf.matmul(keys, values_t) # shape (batch_size, num_keys, num_values)
             attn_logits_mask = tf.expand_dims(values_mask, 1) # shape (batch_size, 1, num_values)
-            _, attn_dist = masked_softmax(attn_logits, attn_logits_mask, 2) # shape (batch_size, num_keys, num_values). take softmax over values
+            _, attn_dist = masked_softmax(similarity_matrix, attn_logits_mask, 2) # shape (batch_size, num_keys, num_values). take softmax over values
 
+            print "attn_dist"
+            print attn_dist
             # Use attention distribution to take weighted sum of values
-            output = tf.matmul(attn_dist, values) # shape (batch_size, num_keys, value_vec_size)
+            a_i = tf.matmul(attn_dist, values) # shape (batch_size, num_keys, value_vec_size)
+            print "a_i"
+            print a_i
+            max_i = tf.reduce_max(similarity_matrix, axis = 2)
+            print "max_i"
+            print max_i
 
+            #can't use attn_logits_mask because dealing with keys now
+            #context_logits_mask = tf.expand_dims(context_mask, 1) #(batch_size , 1, num_keys)
+            _, beta_dist = masked_softmax(max_i, context_mask, 1) #(batch_size, num_keys, num_vals)
+            print "beta_dist"
+            print beta_dist
+            beta_dist = tf.reshape(tf.tile(beta_dist, [1,self.value_vec_size]), shape = [-1, num_keys, self.value_vec_size])
 
+            #c_prime = tf.matmul(beta_dist, keys)
+            c_prime = tf.reduce_sum(beta_dist * keys, axis = 1)
+            c_prime = tf.reshape(tf.tile(c_prime, [1, num_keys]), shape = [-1, num_keys, self.value_vec_size])
+            print "c_prime"
+            print c_prime
 
-
-
-
+            ci_ai = keys * a_i
+            ci_cprime = keys * c_prime
+            b_i = tf.concat([keys, a_i, ci_ai, ci_cprime], axis = 2)
             # Apply dropout
-            output = tf.nn.dropout(output, self.keep_prob)
+            #output = tf.nn.dropout(output, self.keep_prob)
 
-            return attn_dist, output
+            #return attn_dist, output
+            return b_i
 
 def masked_softmax(logits, mask, dim):
     """
