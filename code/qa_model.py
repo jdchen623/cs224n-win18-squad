@@ -112,8 +112,34 @@ class QAModel(object):
 
             # Get the word embeddings for the context and question,
             # using the placeholders self.context_ids and self.qn_ids
+
             self.context_embs = embedding_ops.embedding_lookup(embedding_matrix, self.context_ids) # shape (batch_size, context_len, embedding_size)
             self.qn_embs = embedding_ops.embedding_lookup(embedding_matrix, self.qn_ids) # shape (batch_size, question_len, embedding_size)
+            print self.context_embs, self.qn_embs
+
+
+            # If exact context word appears in question somewhere
+            tiled_c = tf.reshape(tf.tile(self.context_ids, [1, self.FLAGS.question_len]),
+                [self.FLAGS.batch_size, self.FLAGS.context_len, self.FLAGS.question_len])
+            tiled_q = tf.reshape(tf.tile(self.qn_ids, [1, self.FLAGS.context_len]),
+                [self.FLAGS.batch_size, self.FLAGS.context_len, self.FLAGS.question_len])
+            isInQuestion = tf.reduce_sum(tf.cast(tf.equal(tiled_c, tiled_q), dtype=tf.float32), axis=2, keep_dims=True)
+
+            # Minimum norm between context word and every question embedding
+            tiled_c_embs = tf.reshape(tf.tile(self.context_embs, [1, self.FLAGS.question_len, 1]),
+                [self.FLAGS.batch_size, self.FLAGS.context_len, self.FLAGS.question_len, self.FLAGS.hidden_size//2])
+            tiled_q_embs = tf.reshape(tf.tile(self.qn_embs, [1, self.FLAGS.context_len, 1]),
+                [self.FLAGS.batch_size, self.FLAGS.context_len, self.FLAGS.question_len, self.FLAGS.hidden_size//2])
+            minDistToQuestions = tf.reduce_min(tf.norm(tiled_c_embs - tiled_q_embs, axis=3), axis=2, keep_dims=True)
+
+            self.context_embs = tf.concat([self.context_embs, isInQuestion], axis=2)
+            self.context_embs = tf.concat([self.context_embs, minDistToQuestions], axis=2)
+
+            self.qn_embs = tf.concat([self.qn_embs, tf.zeros((self.FLAGS.batch_size, self.FLAGS.question_len, 2))], axis=2)
+            self.FLAGS.hidden_size += 1
+
+            print self.context_embs, self.qn_embs
+            print self.FLAGS.hidden_size
 
 
     def build_graph(self):
