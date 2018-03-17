@@ -115,7 +115,7 @@ class QAModel(object):
 
             self.context_embs = embedding_ops.embedding_lookup(embedding_matrix, self.context_ids) # shape (batch_size, context_len, embedding_size)
             self.qn_embs = embedding_ops.embedding_lookup(embedding_matrix, self.qn_ids) # shape (batch_size, question_len, embedding_size)
-            print self.context_embs, self.qn_embs
+            #print self.context_embs, self.qn_embs
 
 
             # If exact context word appears in question somewhere
@@ -137,9 +137,9 @@ class QAModel(object):
 
             self.qn_embs = tf.concat([self.qn_embs, tf.zeros((self.FLAGS.batch_size, self.FLAGS.question_len, 2))], axis=2)
             self.FLAGS.hidden_size += 1
-
-            print self.context_embs, self.qn_embs
-            print self.FLAGS.hidden_size
+            
+            # print self.context_embs, self.qn_embs
+            # print self.FLAGS.hidden_size
 
 
     def build_graph(self):
