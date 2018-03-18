@@ -117,8 +117,10 @@ class QAModel(object):
             self.qn_embs = embedding_ops.embedding_lookup(embedding_matrix, self.qn_ids) # shape (batch_size, question_len, embedding_size)
 
             # If exact context word appears in question somewhere
+            #tiled_c = tf.reshape(tf.tile(self.context_ids, [1, self.FLAGS.question_len]),
+                #[self.FLAGS.batch_size, self.FLAGS.context_len, self.FLAGS.question_len])
             tiled_c = tf.reshape(tf.tile(self.context_ids, [1, self.FLAGS.question_len]),
-                [self.FLAGS.batch_size, self.FLAGS.context_len, self.FLAGS.question_len])
+                [-1, self.FLAGS.context_len, self.FLAGS.question_len])
             # tiled_q = tf.reshape(tf.tile(self.qn_ids, [1, self.FLAGS.context_len]),
             #     [-1, self.FLAGS.context_len, self.FLAGS.question_len])
             # isInQuestion = tf.reduce_sum(tf.cast(tf.equal(tiled_c, tiled_q), dtype=tf.float32), axis=2, keep_dims=True)
@@ -126,8 +128,10 @@ class QAModel(object):
 
 
             # Minimum norm between context word and every question embedding
+            #tiled_c_embs = tf.reshape(tf.tile(self.context_embs, [1, self.FLAGS.question_len, 1]),
+                #[self.FLAGS.batch_size, self.FLAGS.context_len, self.FLAGS.question_len, self.FLAGS.hidden_size//2])
             tiled_c_embs = tf.reshape(tf.tile(self.context_embs, [1, self.FLAGS.question_len, 1]),
-                [self.FLAGS.batch_size, self.FLAGS.context_len, self.FLAGS.question_len, self.FLAGS.hidden_size//2])
+                [-1, self.FLAGS.context_len, self.FLAGS.question_len, self.FLAGS.hidden_size//2])
             # tiled_q_embs = tf.reshape(tf.tile(self.qn_embs, [1, self.FLAGS.context_len, 1]),
             #     [-1, self.FLAGS.context_len, self.FLAGS.question_len, self.FLAGS.hidden_size//2])
             #minDistToQuestions = tf.reduce_min(tf.norm(tiled_c_embs - tiled_q_embs, axis=3), axis=2, keep_dims=True)
