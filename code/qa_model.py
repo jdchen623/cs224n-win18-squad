@@ -119,16 +119,20 @@ class QAModel(object):
             # If exact context word appears in question somewhere
             tiled_c = tf.reshape(tf.tile(self.context_ids, [1, self.FLAGS.question_len]),
                 [-1, self.FLAGS.context_len, self.FLAGS.question_len])
-            tiled_q = tf.reshape(tf.tile(self.qn_ids, [1, self.FLAGS.context_len]),
-                [-1, self.FLAGS.context_len, self.FLAGS.question_len])
-            isInQuestion = tf.reduce_sum(tf.cast(tf.equal(tiled_c, tiled_q), dtype=tf.float32), axis=2, keep_dims=True)
+            # tiled_q = tf.reshape(tf.tile(self.qn_ids, [1, self.FLAGS.context_len]),
+            #     [-1, self.FLAGS.context_len, self.FLAGS.question_len])
+            # isInQuestion = tf.reduce_sum(tf.cast(tf.equal(tiled_c, tiled_q), dtype=tf.float32), axis=2, keep_dims=True)
+            isInQuestion = tf.reduce_sum(tf.cast(tf.equal(tiled_c, tf.expand_dims(self.qn_ids, axis=1)), dtype=tf.float32), axis=2, keep_dims=True)
+
 
             # Minimum norm between context word and every question embedding
             tiled_c_embs = tf.reshape(tf.tile(self.context_embs, [1, self.FLAGS.question_len, 1]),
                 [-1, self.FLAGS.context_len, self.FLAGS.question_len, self.FLAGS.hidden_size//2])
-            tiled_q_embs = tf.reshape(tf.tile(self.qn_embs, [1, self.FLAGS.context_len, 1]),
-                [-1, self.FLAGS.context_len, self.FLAGS.question_len, self.FLAGS.hidden_size//2])
-            minDistToQuestions = tf.reduce_min(tf.norm(tiled_c_embs - tiled_q_embs, axis=3), axis=2, keep_dims=True)
+            # tiled_q_embs = tf.reshape(tf.tile(self.qn_embs, [1, self.FLAGS.context_len, 1]),
+            #     [-1, self.FLAGS.context_len, self.FLAGS.question_len, self.FLAGS.hidden_size//2])
+            #minDistToQuestions = tf.reduce_min(tf.norm(tiled_c_embs - tiled_q_embs, axis=3), axis=2, keep_dims=True)
+            minDistToQuestions = tf.reduce_min(tf.norm(tiled_c_embs - tf.expand_dims(self.qn_embs, axis=1), axis=3), axis=2, keep_dims=True)
+
 
             self.context_embs = tf.concat([self.context_embs, isInQuestion], axis=2)
             self.context_embs = tf.concat([self.context_embs, minDistToQuestions], axis=2)
