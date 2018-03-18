@@ -139,7 +139,7 @@ class QAModel(object):
             #self.qn_embs = tf.concat([self.qn_embs, tf.zeros((self.FLAGS.batch_size, self.FLAGS.question_len, 2))], axis=2)
 
             #Jeff makes batch_size dynammic to resolve iter 500 issues
-            curr_qn_batch_size = tf.shape(self.qn.embs)[0]
+            curr_qn_batch_size = tf.shape(self.qn_embs)[0]
             self.qn_embs = tf.concat([self.qn_embs, tf.zeros((curr_qn_batch_size, self.FLAGS.question_len, 2))], axis=2)
 
             #self.FLAGS.hidden_size += 1
